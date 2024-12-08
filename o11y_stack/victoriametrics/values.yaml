@@ -266,13 +266,77 @@ vm:
           memory: 250Mi
 
 blackbox:
-  enabled: false
+  enabled: true
   serviceMonitor:
     enabled: true
     defaults:
-      additionalMetricsRelabels: {}
+      additionalMetricsRelabels:
+        - source_labels: [__param_target]
+          target_label: target_label_name
+        - source_labels: [__param_module]
+          target_label: probe_type
       labels:
-        prometheus: app
-      interval: 30s
-      scrapeTimeout: 30s
+        prometheus: blackbox
+      interval: 15s
+      scrapeTimeout: 10s
       module: http_2xx
+  probes:
+    - job_name: k8s-service-probe
+      metrics_path: /probe
+      params:
+        module: [http_2xx]
+      kubernetes_sd_configs:
+        - role: endpoints
+      relabel_configs:
+        # Relabel to extract service names as the target
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: instance
+        # Set the target to the service endpoint
+        - source_labels: [__meta_kubernetes_endpoint_address, __meta_kubernetes_endpoint_port_name]
+          separator: ":"
+          target_label: __param_target
+        # Replace the address with Blackbox Exporter's address
+        - target_label: __address__
+          replacement: vm-blackbox.monitoring.svc.cluster.local:9115
+        # Filter services by namespace (optional)
+        - source_labels: [__meta_kubernetes_namespace]
+          regex: monitoring|default  # Change to match your namespaces
+          action: keep
+        # Add additional labels
+        - source_labels: [__meta_kubernetes_service_name]
+          target_label: service_name
+        - source_labels: [__meta_kubernetes_namespace]
+          target_label: namespace
+
+
+# blackbox:
+#   enabled: true
+#   serviceMonitor:
+#     enabled: true
+#     defaults:
+#       additionalMetricsRelabels:
+#         - source_labels: [__param_target]
+#           target_label: target_label_name
+#         - source_labels: [__param_module]
+#           target_label: probe_type
+#       labels:
+#         prometheus: blackbox
+#       interval: 15s  # Ensure scrape interval is reasonable (you can adjust it)
+#       scrapeTimeout: 10s
+#       module: http_2xx  # Ensure this module matches the probing strategy
+#   probes:
+#     - job_name: google-probe
+#       metrics_path: /probe
+#       params:
+#         module: [http_2xx]
+#       static_configs:
+#         - targets:
+#             - https://google.com  # Google target
+#       relabel_configs:
+#         - source_labels: [__address__]
+#           target_label: __param_target
+#         - source_labels: [__param_target]
+#           target_label: instance
+#         - target_label: __address__
+#           replacement: 127.0.0.1:9115  # Correct exporter URL
+
