@@ -22,20 +22,21 @@ spec:
     connectors:
       spanmetrics:
         dimensions:
-        - name: http.method
-        - name: http.status_code
-        - default: /
-          name: http.route
+          - name: http.method
+          - name: http.status_code
+          - name: http.route
+            default: /
         dimensions_cache_size: 1000
         events:
           dimensions:
-          - name: exception.type
-          - name: exception.message
+            - name: exception.type
+            - name: exception.message
           enabled: true
         exemplars:
           enabled: true
         metrics_expiration: 5m
         metrics_flush_interval: 15s
+
     exporters:
       debug: {}
       otlp:
@@ -59,6 +60,7 @@ spec:
         timeout: 300s
         tls:
           insecure_skip_verify: true
+
     processors:
       batch:
         send_batch_max_size: 8192
@@ -71,20 +73,36 @@ spec:
       tail_sampling:
         decision_wait: 60s
         policies:
-        - name: error-policy
-          status_code:
-            status_codes:
-            - ERROR
-          type: status_code
-        - latency:
-            threshold_ms: 500
-          name: latency-policy
-          type: latency
-        - name: probabilistic
-          probabilistic:
-            sampling_percentage: 10
-          type: probabilistic
+          - name: error-policy
+            status_code:
+              status_codes:
+                - ERROR
+            type: status_code
+          - name: latency-policy
+            latency:
+              threshold_ms: 500
+            type: latency
+          - name: probabilistic
+            probabilistic:
+              sampling_percentage: 10
+            type: probabilistic
+
     receivers:
+      postgresql:
+        endpoint: my-release-postgresql:5432
+        transport: tcp
+        username: otel
+        password: ${env:POSTGRESQL_PASSWORD}
+        databases:
+          - otel
+        collection_interval: 10s
+        tls:
+          insecure: false
+          insecure_skip_verify: false
+          ca_file: /home/otel/authorities.crt
+          cert_file: /home/otel/mypostgrescert.crt
+          key_file: /home/otel/mypostgreskey.key
+
       otlp:
         protocols:
           grpc:
@@ -98,29 +116,32 @@ spec:
                 timeout: 5m
           http:
             endpoint: 0.0.0.0:4318
+
     service:
       pipelines:
         metrics:
           exporters:
-          - debug
-          - prometheusremotewrite
+            - debug
+            - prometheusremotewrite
           processors:
-          - memory_limiter
-          - batch
+            - memory_limiter
+            - batch
           receivers:
-          - spanmetrics
-          - otlp
+            - spanmetrics
+            - otlp
+            - postgresql
         traces:
           exporters:
-          - debug
-          - otlp
-          - spanmetrics
+            - debug
+            - otlp
+            - spanmetrics
           processors:
-          - memory_limiter
-          - batch
-          - tail_sampling
+            - memory_limiter
+            - batch
+            - tail_sampling
           receivers:
-          - otlp
+            - otlp
+
       telemetry:
         metrics:
           address: 0.0.0.0:8888
